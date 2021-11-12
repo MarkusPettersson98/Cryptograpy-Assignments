@@ -6,7 +6,6 @@ import qualified Data.ByteString.Char8 as BC (pack, unpack)
 import qualified Data.Hex as H (unhexM)
 import Data.Word (Word8)
 import Data.Bits (Bits, xor)
-import Data.List.Split (chunksOf)
 
 main :: IO ()
 main = do
@@ -38,6 +37,11 @@ recoverMessage first_block encrypted =
       key     = iv ⨁ c1 ⨁ first_block
       message = cbcDecryptMessage key (Encrypted iv) (map Encrypted cs)
   in (BC.unpack . B.pack) . (concat . tail) $ message
+  where
+    chunksOf :: Int -> [a] -> [[a]]
+    chunksOf n list
+      | n > length list = pure list
+      | otherwise = take n list : chunksOf n (drop n list)
 
 -- | Data structure representing something that is encrypted.
 newtype Encrypted a = Encrypted a
@@ -77,7 +81,7 @@ instance KeyCipher (Key, Encrypted Block) Block where
 -- | Decrypt multiple blocks / all blocks of a message at once. Takes as
 -- argument a key and an initial vector (IV), and a list of ordered cipher
 -- texts. Iterates over all ciphertexts and decrypts them, accumulating the
--- decrypted message at the end of the decryption.
+-- message of each decrypted block.
 cbcDecryptMessage :: Key -> Encrypted Block -> [Encrypted Block] -> [Block]
 cbcDecryptMessage key iv = accumulate . scanl (cbcRound key) (iv, mempty)
  where
