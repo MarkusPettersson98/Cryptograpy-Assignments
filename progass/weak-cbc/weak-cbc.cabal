@@ -2,7 +2,7 @@ name:                weak-cbc
 version:             0.1.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/githubuser/weak-cbc#readme
+homepage:            https://github.com/MarkusPettersson98/Cryptograpy-Assignments/blob/master/progass/weak-cbc/
 license:             GPL-3.0
 license-file:        LICENSE
 author:              Markus Pettersson, Carl Lundgren
