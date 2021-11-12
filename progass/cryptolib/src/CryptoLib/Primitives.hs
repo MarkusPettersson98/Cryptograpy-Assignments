@@ -5,7 +5,12 @@ import Prelude hiding (gcd)
 -- | Returns a triple (gcd, s, t) such that gcd is the greatest common divisor
 -- of a and b, and gcd = a*s + b*t.
 eea :: (Int, Int) -> (Int, Int, Int)
-eea = undefined
+eea (0, b) = (b, 0, 1)
+eea (a, b) = let (gcd, x1, y1) = eea(b `mod` a, a)
+                 x = y1 - (b `div` a) * x1
+                 y = x1
+             in (gcd, x, y)
+
 
 -- | Returns a^k (mod n).
 modExp :: (Int, Int, Int) -> Int
