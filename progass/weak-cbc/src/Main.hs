@@ -1,11 +1,8 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 import qualified Data.ByteString as B (unpack, pack)
 import qualified Data.ByteString.Char8 as BC (pack, unpack)
 import qualified Data.Hex as H (unhexM)
-import Data.Word (Word8)
-import Data.Bits (Bits, xor)
+import Cipher
+import Utils
 
 main :: IO ()
 main = do
@@ -36,57 +33,15 @@ recoverMessage first_block encrypted =
       -- We can construct key by xor-ing iv, c1 and first_block
       key     = iv ⨁ c1 ⨁ first_block
       message = cbcDecryptMessage key (Encrypted iv) (map Encrypted cs)
-  in (BC.unpack . B.pack) . (concat . tail) $ message
-  where
-    chunksOf :: Int -> [a] -> [[a]]
-    chunksOf n list
-      | n > length list = pure list
-      | otherwise = take n list : chunksOf n (drop n list)
-
--- | Data structure representing something that is encrypted.
-newtype Encrypted a = Encrypted a
-
-instance Functor Encrypted where
-  fmap f (Encrypted a) = Encrypted (f a)
-
-type Block = [Word8]
-type Key   = [Word8]
-type Bytes = Int
-
--- | A general class for a Cipher.
-class KeyCipher key a where
-  -- | Encrypt a message using a key
-  encrypt :: key -> a -> Encrypted a
-  -- | Decrypt a message using a key
-  decrypt :: key -> Encrypted a -> a
-
--- | Define a Block Cipher.
--- Implied CBC mode.
-instance KeyCipher (Key, Encrypted Block) Block where
-  -- | encrypt (k, c_n-1) m_n = k ⨁ (c_n-1 ⨁ m_n) = E_k(m_n)
-  encrypt :: (Key, Encrypted Block) -> Block -> Encrypted Block
-  encrypt (k, Encrypted c) m = Encrypted (k ⨁ (c ⨁ m))
-  -- | decrypt (k, c_n-1) c_n =>
-  -- c_n = k ⨁ (c_n-1 ⨁ m_n) =>
-  -- m_n = k ⨁ (c_n-1 ⨁ c_n) = D_k(c_n)
-  decrypt :: (Key, Encrypted Block) -> Encrypted Block -> Block
-  decrypt (k, Encrypted c) (Encrypted m) = k ⨁ (c ⨁ m)
-
--- * Helper functions for decryption (General + Block Cipher in CBC mode).
-
--- | xor on the level of [Bits a] instead of Bits a.
-(⨁) :: Bits a => [a] -> [a] -> [a]
-(⨁) = zipWith xor
+  in BC.unpack . B.pack . concat . drop 1 $ message
 
 -- | Decrypt multiple blocks / all blocks of a message at once. Takes as
 -- argument a key and an initial vector (IV), and a list of ordered cipher
 -- texts. Iterates over all ciphertexts and decrypts them, accumulating the
 -- message of each decrypted block.
 cbcDecryptMessage :: Key -> Encrypted Block -> [Encrypted Block] -> [Block]
-cbcDecryptMessage key iv = accumulate . scanl (cbcRound key) (iv, mempty)
- where
-  accumulate :: [(a, b)] -> [b]
-  accumulate = tail . map snd
+cbcDecryptMessage key iv = map snd . tail . scanl (cbcRound key) (iv, mempty)
+
 
 -- | One round of decryption for this simple Block Cipher. Prepares for
 -- decryption of next cipher text by providing the current encrypted cipher text
