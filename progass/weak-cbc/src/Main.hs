@@ -1,8 +1,13 @@
-import qualified Data.ByteString as B (unpack, pack)
+import Data.Bits (Bits, xor)
+import qualified Data.ByteString as B (pack, unpack)
 import qualified Data.ByteString.Char8 as BC (pack, unpack)
-import qualified Data.Hex as H (unhexM)
-import Cipher
+import Data.Hex (unhexM)
+import Data.Word (Word8)
 import Utils
+
+type Block = [Word8]
+type Key = [Word8]
+type Bytes = Int
 
 main :: IO ()
 main = do
@@ -13,38 +18,48 @@ main = do
   putStrLn $ "Recovered message: " ++ show m
 
 -- | Parses the problem.
-parseInput :: MonadFail m => String -> m (Block, Encrypted Block)
+parseInput :: MonadFail m => String -> m (Block, [Block])
 parseInput content = do
-  let fileLines = lines content
-  first_block <- pure . B.unpack . BC.pack $ fileLines !! 0
-  encrypted   <- Encrypted . B.unpack <$> (H.unhexM . BC.pack) (fileLines !! 1)
+  let (line1 : line2 : _) = lines content
+      first_block = B.unpack . BC.pack $ line1
+  encrypted <- chunksOf (12 :: Bytes) . B.unpack <$> (unhexM . BC.pack) line2
   return (first_block, encrypted)
 
 -- | Recover the encrypted message, knowing the first block of plain text. The
 -- encrypted text is of the form C0 | C1 | ... | Cn where each block is 12 bytes
 -- long, and C0 = IV.
-recoverMessage :: Block -> Encrypted Block -> String
-recoverMessage first_block encrypted =
-  let Encrypted cs@(iv:c1:_) = chunksOf (12 :: Bytes) <$> encrypted
-      -- m           = first_block
-      -- c1          = (m ⨁ iv) ⨁ k
-      -- Solve for k
-      -- k           = c1 ⨁ (m ⨁ iv)
-      -- We can construct key by xor-ing iv, c1 and first_block
-      key     = iv ⨁ c1 ⨁ first_block
-      message = cbcDecryptMessage key (Encrypted iv) (map Encrypted cs)
-  in BC.unpack . B.pack . concat . drop 1 $ message
+--
+-- m           = first_block
+-- c1          = (m ⨁ iv) ⨁ key
+-- Solve for key
+-- key         = c1 ⨁ (m ⨁ iv)
+-- We can construct key by xor-ing iv, c1 and first_block
+recoverMessage :: Block -> [Block] -> String
+recoverMessage first_block encrypted@(iv : c1 : _) = BC.unpack . B.pack . concat . cbcDecryptMessage key $ encrypted
+  where
+    key = iv ⨁ c1 ⨁ first_block
+
+-- * Helper functions for decryption
 
 -- | Decrypt multiple blocks / all blocks of a message at once. Takes as
--- argument a key and an initial vector (IV), and a list of ordered cipher
--- texts. Iterates over all ciphertexts and decrypts them, accumulating the
--- message of each decrypted block.
-cbcDecryptMessage :: Key -> Encrypted Block -> [Encrypted Block] -> [Block]
-cbcDecryptMessage key iv = map snd . tail . scanl (cbcRound key) (iv, mempty)
+-- argument a key and a list of ordered cipher texts. Iterates over all
+-- ciphertexts and decrypts them, accumulating the message of each decrypted
+-- block.
+--
+-- IV | C1 -> zipWith (decrypt key) => key ⨁ (IV ⨁ C1) = m1
+-- C1 | C2 -> zipWith (decrypt key) => key ⨁ (C1 ⨁ C2) = m2
+-- C2 | C3 -> zipWith (decrypt key) => key ⨁ (C2 ⨁ C3) = m3
+-- C3 | C4 -> zipWith (decrypt key) => key ⨁ (C3 ⨁ C4) = m4
+-- .. | .. -> ..
+cbcDecryptMessage :: Key -> [Block] -> [Block]
+cbcDecryptMessage key blocks = zipWith (decrypt key) blocks (tail blocks)
 
+-- | decrypt key c_{n-1} c_n =>
+--  c_n = key ⨁ (c_n-1 ⨁ m_n) =>
+--  m_n = key ⨁ (c_n-1 ⨁ c_n) = D_k(c_n)
+decrypt :: Key -> Block -> Block -> Block
+decrypt k c m = k ⨁ c ⨁ m
 
--- | One round of decryption for this simple Block Cipher. Prepares for
--- decryption of next cipher text by providing the current encrypted cipher text
--- as one of the return values.
-cbcRound :: Key -> (Encrypted Block, Block) -> Encrypted Block -> (Encrypted Block, Block)
-cbcRound key (cprev, _) c = (c, decrypt (key, cprev) c)
+-- | xor on the level of [Bits a] instead of Bits a.
+(⨁) :: Bits a => [a] -> [a] -> [a]
+(⨁) = zipWith xor
