@@ -35,18 +35,17 @@ fermatPT p = case isPrime p of
                Right _ -> 0 -- ^ p is believed to be a prime number.
                Left witness -> witness
   where
-    isPrime :: Integral a => Prime a -> Either (Prime a) (Witness a)
+    isPrime :: Integral a => Prime a -> Either (Witness a) (Prime a)
     isPrime p = foldM (\_ n -> test p n) 0 (tests p)
 
     tests :: Integral a => a -> [a]
-    tests n = 2 : takeWhile (< n `div` 3) (map (+1) (tests n))
+    tests n = 2 : takeWhile (< n `div` 3) (map succ (tests n))
 
-    test :: Integral a => Prime a -> a -> Either (Prime a) (Witness a)
+    test :: Integral a => Prime a -> a -> Either (Witness a) (Prime a)
     test p a = let x = ((a ^ (p-1)) `mod` p)
-            in if x == 1
-            then Right p -- ^ If True, then p is probably a prime.
-            else Left a -- ^ If False, then p is a composite (not prime!). Return witness.
+               in if x == 1
+                  then Right p -- ^ If True, then p is probably a prime.
+                  else Left a -- ^ If False, then p is a composite (not prime!). Return witness.
 
 type Witness a = a
 type Prime a = a
-type FermatTest a b = Either a b
