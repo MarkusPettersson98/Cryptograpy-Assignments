@@ -8,18 +8,41 @@ import qualified Data.ByteString.Lazy as BL (toChunks)
 import qualified Data.Text as T (splitOn, pack, unpack)
 
 main = do
-  let file = "input.txt"
-  content <- readFile file
-  let (p, g, y, year, month, day, hour, minute, second, c1, c2) = parseInput content
-  let m = recoverMessage p g y year month day hour minute second c1 c2
+  m <- recoverMessage . parseInput <$> readFile "input.txt"
   putStrLn $ "Recovered message: " ++ show m
   putStrLn $ "Decoded message: " ++ decode m
 
-decode :: Integer -> String
-decode val = reverse (BS.unpack ((BS.concat . BL.toChunks) $ B.encode val))
+recoverMessage :: Input -> Integer
+recoverMessage (Input p g y year month day hour minute second msg) =
+  -- TODO.
+  p
 
--- | Parses the problem.
-parseInput :: String -> (Integer, Integer, Integer, Int, Int, Int, Int, Int, Int, Integer, Integer)
+-- * Custom data types
+
+-- | Define all of the data that is to be parsed from `input.txt`.
+data Input = Input { p :: Integer
+                   , g :: Integer
+                   , y :: Integer
+
+                   , year :: Int
+                   , month :: Int
+                   , day :: Int
+                   , hour :: Int
+                   , minute :: Int
+                   , second :: Int
+
+                   , message :: Message
+                   }
+
+data Message = Message { pubkey :: Integer
+                       , cipher :: Integer
+                       }
+
+
+-- * Some helper functions
+
+-- | Parse the input to the problem.
+parseInput :: String -> Input
 parseInput content =
   let fileLines = take 6 $ lines content
       p  = readOne (fileLines !! 0)
@@ -36,12 +59,10 @@ parseInput content =
       second = (read . T.unpack) $ (T.splitOn ":" time) !! 2
       c1  = readOne (fileLines !! 4)
       c2  = readOne (fileLines !! 5)
-  in  (p, g, y, year, month, day, hour, minute, second, c1, c2)
+      msg = Message { pubkey = c1, cipher = c2 }
+  in Input p g y year month day hour minute second msg
   where readOne line = (read . T.unpack) $ (T.splitOn "=" (T.pack line)) !! 1
 
-
-recoverMessage :: Integer -> Integer -> Integer -> Int -> Int -> Int -> Int ->
-                  Int -> Int -> Integer -> Integer -> Integer
-recoverMessage p g y year month day hour minute second c1 c2 =
-  -- TODO.
-  p
+-- | Turn a (large) integer value into some String representation.
+decode :: Integer -> String
+decode val = reverse (BS.unpack ((BS.concat . BL.toChunks) $ B.encode val))
