@@ -19,3 +19,9 @@ executable cryptolib
   default-language:    Haskell2010
   other-modules:       CryptoLib.Primitives, CryptoLib.Test
   build-depends:       base >= 4.7 && < 5
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     CryptoLib.Primitives
+  build-depends:       base >= 4.7 && < 5
+  default-language:    Haskell2010
