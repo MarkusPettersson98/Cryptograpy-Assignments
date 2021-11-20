@@ -7,6 +7,8 @@ import qualified Data.ByteString.Char8 as BS (unpack, concat)
 import qualified Data.ByteString.Lazy as BL (toChunks)
 import qualified Data.Text as T (splitOn, pack, unpack)
 
+import CryptoLib.Primitives
+
 main = do
   m <- recoverMessage . parseInput <$> readFile "input.txt"
   putStrLn $ "Recovered message: " ++ show m
