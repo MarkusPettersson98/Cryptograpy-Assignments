@@ -24,7 +24,9 @@ main = do
 -- | Recover an encrypted message by exploiting some information obtained during
 -- eavesdropping.
 recoverMessage :: Input -> Either Error Integer
-recoverMessage (Input params genInput msg) = decrypt ciphertext <$> recoverKey searchspace
+recoverMessage (Input params genInput msg) = do
+  key <- recoverKey searchspace
+  pure $ decrypt ciphertext key
   where
     (SystemParameters prime _ receiverPubKey) = params
     ciphertext = cipher msg
