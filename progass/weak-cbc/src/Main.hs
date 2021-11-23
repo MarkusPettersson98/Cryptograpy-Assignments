@@ -1,29 +1,17 @@
+module Main where
+
 import Data.Bits (Bits, xor)
 import qualified Data.ByteString as B (pack, unpack)
 import qualified Data.ByteString.Char8 as BC (pack, unpack)
-import Data.Hex (unhexM)
-import Data.Word (Word8)
 import Utils
-
-type Block = [Word8]
-type Key = [Word8]
-type Bytes = Int
 
 main :: IO ()
 main = do
-  let file = "input.txt"
-  content <- readFile file
-  (first_block, encrypted) <- parseInput content
+  content <- readFile "input.txt"
+  let blocksize = 12 :: Bytes
+  (first_block, encrypted) <- parseInput blocksize content
   let m = recoverMessage first_block encrypted
   putStrLn $ "Recovered message: " ++ show m
-
--- | Parses the problem.
-parseInput :: MonadFail m => String -> m (Block, [Block])
-parseInput content = do
-  let (line1 : line2 : _) = lines content
-      first_block = B.unpack . BC.pack $ line1
-  encrypted <- chunksOf (12 :: Bytes) . B.unpack <$> (unhexM . BC.pack) line2
-  return (first_block, encrypted)
 
 -- | Recover the encrypted message, knowing the first block of plain text. The
 -- encrypted text is of the form C0 | C1 | ... | Cn where each block is 12 bytes
@@ -35,7 +23,8 @@ parseInput content = do
 -- key         = c1 ⨁ (m ⨁ iv)
 -- We can construct key by xor-ing iv, c1 and first_block
 recoverMessage :: Block -> [Block] -> String
-recoverMessage first_block encrypted@(iv : c1 : _) = BC.unpack . B.pack . concat . cbcDecryptMessage key $ encrypted
+recoverMessage first_block encrypted@(iv : c1 : _) =
+  BC.unpack . B.pack . concat . cbcDecryptMessage key $ encrypted
   where
     key = iv ⨁ c1 ⨁ first_block
 
