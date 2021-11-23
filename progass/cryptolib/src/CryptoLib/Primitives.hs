@@ -28,7 +28,7 @@ fermatPT p = case isPrime p of
     isPrime p = foldM (\_ n -> test p n) 0 (tests p)
 
     tests :: Int -> [Int]
-    tests n = 2 : takeWhile (< n `div` 3) (map succ (tests n))
+    tests n = enumFromTo 2 (n `div` 3) -- ^ This includes (n / 3)
 
     test :: Prime -> Int -> Either Witness Prime
     test p a = let x = modExp (p, a, p-1)
