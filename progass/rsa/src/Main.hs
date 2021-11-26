@@ -6,7 +6,7 @@ import qualified Data.ByteString.Char8 as BS (unpack, concat)
 import qualified Data.ByteString.Lazy as BL (toChunks)
 import qualified Data.Text as T (splitOn, pack, unpack)
 
-import CryptoLib.Primitives
+import CryptoLib.Primitives (crt)
 
 main :: IO ()
 main = do
@@ -21,16 +21,16 @@ main = do
 -- same public key (e = 3) but different modulus (n).
 recoverMessage :: Input -> Input -> Input -> Integer
 recoverMessage (Input n1 e1 c1) (Input n2 e2 c2) (Input n3 e3 c3) =
-  -- TODO. Sample code just sums the moduli.
-  n1 + n2 + n3
+  let (m3, _) = crt [(c1, n1), (c2, n2), (c3, n3)] -- ^ m^3 ∈ Z_{n1 * n2 * n3}
+  in cubeRoot m3                                   -- ^ m^3 ∈ Z_{n1 * n2 * n3} < (n1 * n2 * n3) => m = ∛(m^3)
 
 -- * Custom data types
 
 -- | Group all of the data that is to be parsed from `input.txt`.
 data Input = Input
-  { modulus   :: Integer
+  { modulus   :: Integer -- ^ N = p * q
   , publicKey :: Integer
-  , cipher    :: Integer
+  , cipher    :: Integer -- ^ The encryption of the same message m, aka m^3
   }
   deriving (Show)
 
@@ -43,8 +43,9 @@ parseInput content =
   let [i1, i2, i3] = fmap parseLine . take 3 . lines $ content
   in (i1, i2, i3)
   where parseLine line =
-          let elems  = T.splitOn "," (T.pack line)
-              values = (\[n, e, c] -> Input { modulus=n, publicKey=e, cipher=c }) . map (read . T.unpack . (!! 1) . T.splitOn "=") $ elems
+          let elems   = T.splitOn "," (T.pack line)
+              toInput = \[n, e, c] -> Input { modulus=n, publicKey=e, cipher=c }
+              values  =  toInput . map (read . T.unpack . (!! 1) . T.splitOn "=") $ elems
           in values
 
 -- | Turn a (large) integer value into some String representation.

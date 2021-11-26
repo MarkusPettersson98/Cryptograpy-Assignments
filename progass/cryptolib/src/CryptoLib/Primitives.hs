@@ -68,3 +68,12 @@ eea' a b =
       x = y1 - (b `div` a) * x1
       y = x1
    in (gcd, x, y)
+
+-- | Chinese remainder theorem
+crt :: Integral a => [(a, a)] -> (a, a)
+crt = foldr iteration (0, 1)
+  where
+    iteration (r1, m1) (r2, m2) = -- ^ m1 and m2 are assumed to be coprime!
+      let r = r2 + m2 * (r1 - r2) * modInv' m2 m1
+          m = m2 * m1
+      in (r `mod` m, m)
