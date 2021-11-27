@@ -19,3 +19,4 @@ executable elgamal
                        , text
                        , bytestring
                        , binary
+                       , cryptolib
