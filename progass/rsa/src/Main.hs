@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import qualified Data.Binary as B (encode)
-import qualified Data.ByteString.Char8 as BS (unpack, concat)
-import qualified Data.ByteString.Lazy as BL (toChunks)
-import qualified Data.Text as T (splitOn, pack, unpack)
+import qualified Data.Binary           as B (encode)
+import qualified Data.ByteString.Char8 as BS (concat, unpack)
+import qualified Data.ByteString.Lazy  as BL (toChunks)
+import qualified Data.Text             as T (pack, splitOn, unpack)
 
-import CryptoLib.Primitives (crt)
+import           CryptoLib.Primitives  (crt)
 
 main :: IO ()
 main = do
