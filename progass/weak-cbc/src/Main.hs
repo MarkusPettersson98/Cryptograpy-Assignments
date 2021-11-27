@@ -1,68 +1,54 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE InstanceSigs #-}
-import Control.Monad (liftM2)
-import Prelude hiding ((||))
-import qualified Data.ByteString as B (unpack, pack)
-import qualified Data.ByteString.Char8 as BC (pack, unpack)
-import qualified Data.Hex as H (unhexM)
-import Data.Word (Word8)
+module Main where
+
 import Data.Bits (Bits, xor)
+import qualified Data.ByteString as B (pack, unpack)
+import qualified Data.ByteString.Char8 as BC (pack, unpack)
+import Utils
 
 main :: IO ()
 main = do
-  let file = "input.txt"
-  content <- readFile file
-  (first_block, encrypted) <- parseInput content
+  content <- readFile "input.txt"
+  let blocksize = 12 :: Bytes
+  (first_block, encrypted) <- parseInput blocksize content
   let m = recoverMessage first_block encrypted
   putStrLn $ "Recovered message: " ++ show m
 
--- | Parses the problem.
-parseInput :: MonadFail m => String -> m (Block, Encrypted Block)
-parseInput content = do
-  let fileLines = lines content
-  first_block <- pure . B.unpack . BC.pack . head $ fileLines
-  encrypted   <- Encrypted . B.unpack <$> (H.unhexM . BC.pack) (fileLines !! 1)
-  return (first_block, encrypted)
-
 -- | Recover the encrypted message, knowing the first block of plain text. The
--- encrypted text is of the form IV | C0 | C1 | ... where each block is 12 bytes
--- long.
-recoverMessage :: Block -> Encrypted Block -> String
-recoverMessage first_block encrypted =
-  -- TODO. Decrypt the message on the byte (Word8) representation. When you have
-  -- the final message, convert it to a string a shown below.
-  let key = undefined -- TODO
-      message = decrypt key encrypted
-  in BC.unpack . B.pack $ message
+-- encrypted text is of the form C0 | C1 | ... | Cn where each block is 12 bytes
+-- long, and C0 = IV.
+--
+-- m           = first_block
+-- c1          = (m ⨁ iv) ⨁ key
+-- Solve for key
+-- key         = c1 ⨁ (m ⨁ iv)
+-- We can construct key by xor-ing iv, c1 and first_block
+recoverMessage :: Block -> [Block] -> String
+recoverMessage first_block encrypted@(iv : c1 : _) =
+  BC.unpack . B.pack . concat . cbcDecryptMessage key $ encrypted
+  where
+    key = iv ⨁ c1 ⨁ first_block
 
--- | Data structure representing something that is encrypted.
-newtype Encrypted a = Encrypted a
-type Block = [Word8]
-type Key = [Word8]
+-- * Helper functions for decryption
 
--- | A general class for a Cipher.
-class Cipher a where
-  -- | Encrypt a message using a key
-  encrypt :: Key -> a -> Encrypted a
-  -- | Decrypt a message using a key
-  decrypt :: Key -> Encrypted a -> a
+-- | Decrypt multiple blocks / all blocks of a message at once. Takes as
+-- argument a key and a list of ordered cipher texts. Iterates over all
+-- ciphertexts and decrypts them, accumulating the message of each decrypted
+-- block.
+--
+-- IV | C1 -> zipWith (decrypt key) => key ⨁ (IV ⨁ C1) = m1
+-- C1 | C2 -> zipWith (decrypt key) => key ⨁ (C1 ⨁ C2) = m2
+-- C2 | C3 -> zipWith (decrypt key) => key ⨁ (C2 ⨁ C3) = m3
+-- C3 | C4 -> zipWith (decrypt key) => key ⨁ (C3 ⨁ C4) = m4
+-- .. | .. -> ..
+cbcDecryptMessage :: Key -> [Block] -> [Block]
+cbcDecryptMessage key blocks = zipWith (decrypt key) blocks (tail blocks)
 
--- | Define a Block Cipher.
-instance Cipher Block where
-  -- | encrypt k m = m' = k ⨁ m
-  encrypt :: Key -> Block -> Encrypted Block
-  encrypt k m = Encrypted (k ⨁ m)
-  -- | Encrypted m == m' = k ⨁ m
-  -- decrypt k m' == k ⨁ (k ⨁ m) = (k ⨁ k) ⨁ m = {0}^n ⨁ m = m
-  --                 ^decrypt        ^associativity
-  -- where n = length of key.
-  decrypt :: Key -> Encrypted Block -> Block
-  decrypt k (Encrypted m) = k ⨁ m
+-- | decrypt key c_{n-1} c_n =>
+--  c_n = key ⨁ (c_n-1 ⨁ m_n) =>
+--  m_n = key ⨁ (c_n-1 ⨁ c_n) = D_k(c_n)
+decrypt :: Key -> Block -> Block -> Block
+decrypt k c m = k ⨁ c ⨁ m
 
--- | xor on the level of m a (e.g. [a]) instead of a.
+-- | xor on the level of [Bits a] instead of Bits a.
 (⨁) :: Bits a => [a] -> [a] -> [a]
-(⨁) = liftM2 xor
-
--- | Concatenation of blocks is free, since lists are instances of Semigroup.
-(||) :: [a] -> [a] -> [a]
-(||) = (<>)
+(⨁) = zipWith xor
