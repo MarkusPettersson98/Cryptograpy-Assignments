@@ -20,9 +20,8 @@ main = do
 -- | Try to recover the message that is encrypted three times under the
 -- same public key (e = 3) but different modulus (n).
 recoverMessage :: Input -> Input -> Input -> Integer
-recoverMessage (Input n1 e1 c1) (Input n2 e2 c2) (Input n3 e3 c3) =
-  let (m3, _) = crt [(c1, n1), (c2, n2), (c3, n3)] -- ^ m^3 ∈ Z_{n1 * n2 * n3}
-  in cubeRoot m3                                   -- ^ m^3 ∈ Z_{n1 * n2 * n3} < (n1 * n2 * n3) => m = ∛(m^3)
+recoverMessage (Input n1 e1 c1) (Input n2 e2 c2) (Input n3 e3 c3) = solve [(c1, n1), (c2, n2), (c3, n3)]
+  where solve = cubeRoot . fst . crt -- ^ m^3 ∈ Z_{n1 * n2 * n3} < (n1 * n2 * n3) => m = ∛(m^3)
 
 -- * Custom data types
 
