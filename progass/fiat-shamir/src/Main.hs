@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import Data.List (find, partition)
 import qualified Data.Binary as B (encode)
 import qualified Data.ByteString.Char8 as BS (unpack, concat)
 import qualified Data.ByteString.Lazy as BL (toChunks)
@@ -10,22 +11,37 @@ import           CryptoLib.Primitives
 main = do
   let file = "input.txt"
   input <- parseInput <$> readFile file
-  let m = recoverMessage input
-  putStrLn $ "Recovered message: " ++ show m
-  putStrLn $ "Decoded message: " ++ decode m
+  case recoverMessage input of
+    Nothing -> putStrLn "Failed to recover message."
+    Just m -> do
+      putStrLn $ "Recovered message: " ++ show m
+      putStrLn $ "Decoded message: " ++ decode m
+
+-- | Recovers the secret used in this collection of Fiat-Shamir protocol runs.
+-- n = the modulus, pubX = the public key, runs = a collection of runs.
+-- Each run consists of the three integers [R, b, z].
+recoverMessage :: Input -> Maybe Integer
+recoverMessage (Input n pubX runs) = do
+  let (zeroes, ones) = partition (\run -> b run == 0) runs
+      permutations = [ (m1, m2) | m1 <- zeroes, m2 <- ones]
+  -- Find the two messages m_1, m_2 such that (m_1: b=0, m_2 : b_1) && (m_1: Z=r, m_2: Z=r*x) => (((z m_1)^-1 * z m_2 )^2) mod n == X mod n
+  (m1, m2) <- find (\(m1, m2) -> (x m1 m2)^2 `mod` n == pubX) permutations
+  pure (x m1 m2 `mod` n)
+  where
+    x m1 m2 = (z m1 `modInv'` n) * z m2
 
 decode :: Integer -> String
 decode val = reverse (BS.unpack ((BS.concat . BL.toChunks) $ B.encode val))
 
 -- * Data Types
-data Input = Input { n :: Integer
-                   , publicX :: Integer
-                   , runs :: [Run]
+data Input = Input { n       :: Integer -- N = p * q', which is a public key.
+                   , publicX :: Integer -- X = x^2 mod N, where x is someone's private key.
+                   , runs    :: [Run]
                    }
 
-data Run = Run { r :: Integer
-               , c :: Integer
-               , s :: Integer
+data Run = Run { r :: Integer -- Prover's commitment `R` is same in some case.
+               , b :: Integer
+               , z :: Integer
                }
 
 -- | Parses the problem.
@@ -40,14 +56,6 @@ parseInput content =
     parseRun :: String -> Run
     parseRun line =
           let elems  = T.splitOn "," (T.pack line) -- R, c, s
-              (r:c:s:_) = map (read . T.unpack . (!! 1) . T.splitOn "=") elems -- R=,c=,s=
-          in Run r c s
+              (r:b:z:_) = map (read . T.unpack . (!! 1) . T.splitOn "=") elems -- R=,c=,s=
+          in Run r b z
     readOne line = (read . T.unpack) $ (T.splitOn "=" (T.pack line)) !! 1
-
--- | Recovers the secret used in this collection of Fiat-Shamir protocol runs.
--- n = the modulus, pubX = the public key, runs = a collection of runs.
--- Each run consists of the three integers [R, c, s].
-recoverMessage :: Input -> Integer
-recoverMessage (Input n pubX runs) =
-  -- TODO. Return x such that x^2 = pubX (mod n).
-  n
