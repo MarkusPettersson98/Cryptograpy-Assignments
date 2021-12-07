@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Data.List (find, partition)
 import qualified Data.Binary as B (encode)
 import qualified Data.ByteString.Char8 as BS (unpack, concat)
 import qualified Data.ByteString.Lazy as BL (toChunks)
 import qualified Data.Text as T (splitOn, pack, unpack)
 import           CryptoLib.Primitives
+import           Data.List (find)
 
 main = do
   let file = "input.txt"
@@ -22,13 +22,13 @@ main = do
 -- Each run consists of the three integers [R, b, z].
 recoverMessage :: Input -> Maybe Integer
 recoverMessage (Input n pubX runs) = do
-  let (zeroes, ones) = partition (\run -> b run == 0) runs
-      permutations = [ (m1, m2) | m1 <- zeroes, m2 <- ones]
+  let exchanges = [ (m1, m2) | m1 <- runs, m2 <- runs, b m1 == 0, b m2 == 1]
   -- Find the two messages m_1, m_2 such that (m_1: b=0, m_2 : b_1) && (m_1: Z=r, m_2: Z=r*x) => (((z m_1)^-1 * z m_2 )^2) mod n == X mod n
-  (m1, m2) <- find (\(m1, m2) -> (x m1 m2)^2 `mod` n == pubX) permutations
+  (m1, m2) <- find (uncurry makesSecret) exchanges
   pure (x m1 m2 `mod` n)
   where
     x m1 m2 = (z m1 `modInv'` n) * z m2
+    makesSecret m1 m2 = (x m1 m2)^2 `mod` n == pubX
 
 decode :: Integer -> String
 decode val = reverse (BS.unpack ((BS.concat . BL.toChunks) $ B.encode val))
